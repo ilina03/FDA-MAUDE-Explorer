@@ -591,11 +591,13 @@ function updateKPIs(data) {
   const nMalfn  = data.filter(r => r.event_type === 'Malfunction').length;
   const nDev    = new Set(data.map(r => r.generic_name).filter(Boolean)).size;
 
-  const dates = data.map(r => r.dateObj).filter(Boolean).sort((a,b) => a-b);
-  const uniqueMonths = [...new Set(dates.map(d => fmtMonth(d)))];
-  const span  = uniqueMonths.length >= 2
-    ? `${uniqueMonths[0]} – ${uniqueMonths[uniqueMonths.length-1]}`
-    : uniqueMonths.length === 1 ? uniqueMonths[0] : '—';
+  const startLabel = document.getElementById('date-start').value
+    ? fmtMonth(new Date(document.getElementById('date-start').value + 'T12:00:00'))
+    : '—';
+  const endLabel = document.getElementById('date-end').value
+    ? fmtMonth(new Date(document.getElementById('date-end').value + 'T12:00:00'))
+    : '—';
+  const span = `${startLabel} – ${endLabel}`;
 
   document.getElementById('kpi-total').textContent   = data.length.toLocaleString();
   document.getElementById('kpi-injury').textContent  = nInjury.toLocaleString();
