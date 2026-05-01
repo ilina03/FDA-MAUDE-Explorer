@@ -72,13 +72,15 @@ class TopicResult:
     n_docs_skipped:  int
 
     def representative_texts(self, df: pd.DataFrame, topic_id: int, n: int = 3) -> pd.DataFrame:
+        # doc_topics only covers rows that had enough text — filter df to those rows first
+        modeled_df = df.loc[df.index.isin(self.doc_topics.index)]
         mask = self.doc_topics == topic_id
         if not mask.any():
             return pd.DataFrame()
         topic_idx = topic_id
         scores_for_topic = self.doc_scores[mask.values, topic_idx]
         top_local = np.argsort(scores_for_topic)[::-1][:n]
-        global_idx = df[mask].iloc[top_local].index
+        global_idx = modeled_df[mask].iloc[top_local].index
         out = df.loc[global_idx, [
             "report_number", "date_received", "event_type",
             "generic_name", "manufacturer", "narrative",
