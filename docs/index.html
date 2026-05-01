@@ -514,6 +514,13 @@ async function fetchAllRecords(startDate, endDate, deviceName, maxRecs) {
 
     await sleep(50);
   }
+  // Deduplicate by report_number
+  const seen = new Set();
+  records = records.filter(r => {
+    if (seen.has(r.report_number)) return false;
+    seen.add(r.report_number);
+    return true;
+  });
   return records;
 }
 
