@@ -280,7 +280,7 @@
   </div>
   <div class="control-group">
     <span class="control-label">From</span>
-    <input type="date" id="date-start" value="2022-01-01">
+    <input type="date" id="date-start" value="2020-01-01">
   </div>
   <div class="control-group">
     <span class="control-label">To</span>
@@ -515,6 +515,16 @@ async function fetchAllRecords(startDate, endDate, deviceName, maxRecs) {
     await sleep(50);
   }
 
+  // Deduplicate by report_number + device + first 150 chars of narrative
+  // removes true dupes while keeping legitimate separate field action reports
+  const seen = new Set();
+  records = records.filter(r => {
+    const key = r.generic_name + '||' + r.manufacturer + '||' + r.narrative.slice(0, 150);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   return records;
 }
 
@@ -582,9 +592,10 @@ function updateKPIs(data) {
   const nDev    = new Set(data.map(r => r.generic_name).filter(Boolean)).size;
 
   const dates = data.map(r => r.dateObj).filter(Boolean).sort((a,b) => a-b);
-  const span  = dates.length >= 2
-    ? `${fmtMonth(dates[0])} – ${fmtMonth(dates[dates.length-1])}`
-    : '—';
+  const uniqueMonths = [...new Set(dates.map(d => fmtMonth(d)))];
+  const span  = uniqueMonths.length >= 2
+    ? `${uniqueMonths[0]} – ${uniqueMonths[uniqueMonths.length-1]}`
+    : uniqueMonths.length === 1 ? uniqueMonths[0] : '—';
 
   document.getElementById('kpi-total').textContent   = data.length.toLocaleString();
   document.getElementById('kpi-injury').textContent  = nInjury.toLocaleString();
