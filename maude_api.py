@@ -241,7 +241,11 @@ def _parse_records(records: list[dict]) -> pd.DataFrame:
 
         # ── Event type — map raw code to label ────────────────────────────
         raw_et    = (r.get("event_type") or "").strip()
-        event_type = EVENT_TYPE_MAP.get(raw_et, "Other")
+        # API returns full words ("Injury", "Malfunction") not codes ("IN", "M")
+        if raw_et in EVENT_TYPE_MAP.values():
+            event_type = raw_et
+        else:
+            event_type = EVENT_TYPE_MAP.get(raw_et, "Other")
 
         # ── Reporter ──────────────────────────────────────────────────────
         reporter_code = (r.get("reporter_occupation_code") or "").strip()
