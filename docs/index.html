@@ -631,7 +631,7 @@ function renderTrend(data) {
     margin: { l: 40, r: 10, t: 10, b: 40 },
     hovermode: 'x unified',
     legend: { orientation: 'h', y: -0.22, font: { size: 10 } },
-    xaxis: { ...PLOTLY_BASE.xaxis, tickangle: -30, tickfont: { size: 10 } },
+    xaxis: { ...PLOTLY_BASE.xaxis, tickangle: -30, tickfont: { size: 10 }, type: 'category' },
     yaxis: { ...PLOTLY_BASE.yaxis, rangemode: 'nonnegative', title: { text: 'Reports', font: { size: 10 } } },
   }, PLOTLY_CONFIG);
 }
