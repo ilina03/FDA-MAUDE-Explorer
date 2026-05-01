@@ -180,6 +180,9 @@ def fetch_events(
         return pd.DataFrame()
 
     df = _parse_records(records)
+  
+    # Deduplicate by report_number
+    df = df.drop_duplicates(subset=["report_number"])
 
     # ── Client-side event_type filter (mirrors recall explorer's classification filter) ──
     if event_types:
