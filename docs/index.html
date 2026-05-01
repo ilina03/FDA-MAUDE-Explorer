@@ -515,17 +515,6 @@ async function fetchAllRecords(startDate, endDate, deviceName, maxRecs) {
     await sleep(50);
   }
 
-  // Deduplicate: combine report_number + narrative start
-  // keeps legitimate repeated field-action reports (different report_number)
-  // but removes true duplicates fetched across pagination
-  const seen = new Set();
-  records = records.filter(r => {
-    const key = r.report_number + '||' + r.narrative.slice(0, 200);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
   return records;
 }
 
@@ -551,7 +540,7 @@ function parseRecord(r) {
 
   return {
     date:          dateStr,
-    dateObj:       dateStr ? new Date(dateStr) : null,
+    dateObj:       dateStr ? new Date(dateStr + 'T12:00:00') : null,
     yearMonth:     dateStr.slice(0, 7),
     event_type:    etLabel,
     generic_name:  (dev.generic_name   || '').trim(),
