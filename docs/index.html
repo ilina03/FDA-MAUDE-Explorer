@@ -262,7 +262,7 @@
   <span class="nav-wordmark">FDA MAUDE Explorer <span>/ openFDA</span></span>
   <div class="nav-right">
     <span class="nav-badge loading" id="status-badge">Loading...</span>
-    <a href="https://github.com/ilina03/fda-maude-explorer" target="_blank">GitHub</a>
+    <a href="https://github.com/ilina03/FDA-MAUDE-Explorer" target="_blank">GitHub</a>
     <a href="https://fda-maude-explorer.streamlit.app" target="_blank">Streamlit App →</a>
   </div>
 </nav>
@@ -272,10 +272,10 @@
   <div class="control-group">
     <span class="control-label">Event Type</span>
     <div class="et-toggles">
-      <button class="et-btn active-injury"      data-et="IN"  onclick="toggleET(this)">Injury</button>
-      <button class="et-btn active-malfunction" data-et="M"   onclick="toggleET(this)">Malfunction</button>
-      <button class="et-btn active-death"       data-et="D"   onclick="toggleET(this)">Death</button>
-      <button class="et-btn active-other"       data-et="O"   onclick="toggleET(this)">Other</button>
+      <button class="et-btn active-injury"      data-et="Injury"      onclick="toggleET(this)">Injury</button>
+      <button class="et-btn active-malfunction" data-et="Malfunction" onclick="toggleET(this)">Malfunction</button>
+      <button class="et-btn active-death"       data-et="Death"       onclick="toggleET(this)">Death</button>
+      <button class="et-btn active-other"       data-et="Other"       onclick="toggleET(this)">Other</button>
     </div>
   </div>
   <div class="control-group">
@@ -389,7 +389,7 @@
     Data: <a href="https://open.fda.gov/apis/device/event/" target="_blank">openFDA /device/event</a> ·
     Updated continuously by FDA · For research use only, not for clinical decision-making ·
     Companion to <a href="https://fda-device-recall.streamlit.app" target="_blank">Device Recall Explorer</a> ·
-    <a href="https://github.com/ilina03/fda-maude-explorer" target="_blank">GitHub</a>
+    <a href="https://github.com/ilina03/FDA-MAUDE-Explorer" target="_blank">GitHub</a>
   </span>
 </footer>
 
@@ -405,8 +405,6 @@ const ET_COLORS = {
   'Other':       '#9ca3af',
   'No Answer':   '#d1d5db',
 };
-
-const ET_CODE_MAP = { 'IN': 'Injury', 'M': 'Malfunction', 'D': 'Death', 'O': 'Other', '*': 'No Answer' };
 
 // MAUDE-specific failure keywords — covers different failure modes than the recall explorer
 const FAILURE_KEYWORDS = [
@@ -429,12 +427,12 @@ const PLOTLY_CONFIG = { displayModeBar: false, responsive: true };
 
 // ── State ────────────────────────────────────────────────────────
 let allRecords = [];
-let activeET   = new Set(['IN', 'M', 'D', 'O']);
+let activeET   = new Set(['Injury', 'Malfunction', 'Death', 'Other']);
 
 document.getElementById('date-end').value = new Date().toISOString().split('T')[0];
 
 // ── Event type toggles ────────────────────────────────────────────
-const ET_KEY_MAP = { 'IN': 'injury', 'M': 'malfunction', 'D': 'death', 'O': 'other' };
+const ET_KEY_MAP = { 'Injury': 'injury', 'Malfunction': 'malfunction', 'Death': 'death', 'Other': 'other' };
 
 function toggleET(btn) {
   const code = btn.dataset.et;
@@ -531,8 +529,7 @@ function parseRecord(r) {
     .map(b => b.text.trim())
     .join(' ');
 
-  const rawET  = r.event_type || '';
-  const etLabel = ET_CODE_MAP[rawET] || 'Other';
+  const etLabel = (r.event_type || 'Other').trim();
 
   // date_received is YYYYMMDD — convert for display
   const rawDate = r.date_received || '';
@@ -544,7 +541,6 @@ function parseRecord(r) {
     date:          dateStr,
     dateObj:       dateStr ? new Date(dateStr) : null,
     yearMonth:     dateStr.slice(0, 7),
-    event_type_code: rawET,
     event_type:    etLabel,
     generic_name:  (dev.generic_name   || '').trim(),
     brand_name:    (dev.brand_name     || '').trim(),
@@ -559,7 +555,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── Filter ────────────────────────────────────────────────────────
 function filtered() {
-  return allRecords.filter(r => activeET.has(r.event_type_code) || r.event_type === 'No Answer');
+  return allRecords.filter(r => activeET.has(r.event_type));
 }
 
 // ── Render all ────────────────────────────────────────────────────
