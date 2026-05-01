@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FDA MAUDE Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #ffffff;
+      --page:    #f9fafb;
+      --border:  #e5e7eb;
+      --ink:     #111827;
+      --muted:   #6b7280;
+      --subtle:  #9ca3af;
+      --surface: #f3f4f6;
+      --blue:    #2563eb;
+      --red:     #dc2626;
+      --darkred: #7f1d1d;
+      --green:   #059669;
+      --amber:   #f59e0b;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--page);
+      color: var(--ink);
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,0.95);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+      padding: 0 1.5rem;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-wordmark { font-size: 14px; font-weight: 600; color: var(--ink); }
+    .nav-wordmark span { color: var(--muted); font-weight: 400; }
+    .nav-right { display: flex; gap: 1rem; align-items: center; }
+    .nav-right a {
+      font-size: 13px; color: var(--muted); text-decoration: none; font-weight: 500;
+    }
+    .nav-right a:hover { color: var(--ink); }
+    .nav-badge {
+      font-size: 11px; font-weight: 500;
+      background: #dcfce7; color: #166534;
+      border: 1px solid #bbf7d0;
+      border-radius: 20px; padding: 2px 9px;
+    }
+    .nav-badge.loading { background: #fef9c3; color: #854d0e; border-color: #fde68a; }
+    .nav-badge.error   { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+
+    /* ── layout ── */
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
+
+    /* ── controls bar ── */
+    .controls {
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .control-group { display: flex; align-items: center; gap: 0.4rem; }
+    .control-label {
+      font-size: 11px; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--muted); white-space: nowrap;
+    }
+    select, input[type="date"], input[type="text"] {
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      color: var(--ink);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 5px 9px;
+      outline: none;
+      transition: border-color 0.12s;
+    }
+    select:focus, input:focus { border-color: var(--blue); }
+
+    /* Event type toggles — amber/red palette distinct from recall explorer's classification toggles */
+    .et-toggles { display: flex; gap: 4px; }
+    .et-btn {
+      font-size: 11px; font-weight: 600;
+      padding: 4px 10px; border-radius: 4px;
+      border: 1.5px solid var(--border);
+      cursor: pointer; transition: all 0.12s;
+      background: var(--bg); color: var(--muted);
+    }
+    .et-btn.active-injury     { background: #fef2f2; color: var(--red);     border-color: var(--red); }
+    .et-btn.active-death      { background: #fdf2f8; color: var(--darkred); border-color: var(--darkred); }
+    .et-btn.active-malfunction{ background: #eff6ff; color: var(--blue);    border-color: var(--blue); }
+    .et-btn.active-other      { background: var(--surface); color: var(--muted); border-color: var(--subtle); }
+
+    .fetch-btn {
+      font-family: 'Inter', sans-serif;
+      font-size: 13px; font-weight: 500;
+      background: var(--ink); color: #fff;
+      border: none; border-radius: 5px;
+      padding: 6px 14px; cursor: pointer;
+      transition: background 0.12s;
+    }
+    .fetch-btn:hover { background: #374151; }
+    .fetch-btn:disabled { background: var(--subtle); cursor: not-allowed; }
+
+    /* ── kpi row ── */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 0;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .kpi {
+      padding: 1rem 1.25rem;
+      border-right: 1px solid var(--border);
+    }
+    .kpi:last-child { border-right: none; }
+    .kpi-value {
+      font-size: 1.5rem; font-weight: 600;
+      color: var(--ink); line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .kpi-value.red     { color: var(--red); }
+    .kpi-value.darkred { color: var(--darkred); }
+    .kpi-value.blue    { color: var(--blue); }
+    .kpi-label {
+      font-size: 11px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.07em;
+      color: var(--subtle); margin-top: 4px;
+    }
+
+    /* ── main grid ── */
+    .main { padding: 1.25rem 1.5rem; max-width: 1200px; margin: 0 auto; }
+
+    .chart-row {
+      display: grid;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .chart-row.cols-3-1 { grid-template-columns: 3fr 1fr; }
+    .chart-row.cols-1   { grid-template-columns: 1fr; }
+    .chart-row.cols-2   { grid-template-columns: 1fr 1fr; }
+
+    .card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-title {
+      font-size: 12px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.07em;
+      color: var(--muted);
+    }
+    .card-body { padding: 0.5rem; }
+
+    /* ── topic pills ── */
+    .topic-pill {
+      display: inline-block;
+      background: #eff6ff; border: 1px solid #bfdbfe;
+      border-radius: 20px; padding: 2px 9px;
+      font-size: 10px; font-weight: 500; color: #1e40af;
+      margin: 2px;
+    }
+    .topics-wrap { padding: 0.5rem 1rem; display: flex; flex-wrap: wrap; gap: 2px; }
+
+    /* ── table ── */
+    .table-wrap { overflow-x: auto; max-height: 340px; overflow-y: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th {
+      position: sticky; top: 0;
+      background: var(--surface);
+      padding: 7px 10px;
+      text-align: left;
+      font-size: 11px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+      color: var(--ink);
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--page); }
+
+    .badge {
+      display: inline-block; font-size: 10px; font-weight: 600;
+      padding: 1px 6px; border-radius: 3px;
+    }
+    .badge-injury      { background: #fef2f2; color: var(--red); }
+    .badge-death       { background: #fdf2f8; color: var(--darkred); }
+    .badge-malfunction { background: #eff6ff; color: var(--blue); }
+    .badge-other       { background: var(--surface); color: var(--muted); }
+
+    /* ── empty / loading states ── */
+    .placeholder {
+      display: flex; align-items: center; justify-content: center;
+      height: 200px; color: var(--subtle); font-size: 13px;
+    }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1.25rem 1.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 0.5rem;
+    }
+    .footer-left { font-size: 12px; font-weight: 600; color: var(--ink); }
+    .footer-right { font-size: 11px; color: var(--subtle); }
+    .footer-right a { color: var(--muted); text-decoration: none; }
+    .footer-right a:hover { color: var(--ink); }
+
+    @media (max-width: 768px) {
+      .kpi-row { grid-template-columns: repeat(3, 1fr); }
+      .chart-row.cols-3-1, .chart-row.cols-2 { grid-template-columns: 1fr; }
+      .controls { gap: 0.6rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <span class="nav-wordmark">FDA MAUDE Explorer <span>/ openFDA</span></span>
+  <div class="nav-right">
+    <span class="nav-badge loading" id="status-badge">Loading...</span>
+    <a href="https://github.com/ilina03/fda-maude-explorer" target="_blank">GitHub</a>
+    <a href="https://fda-maude-explorer.streamlit.app" target="_blank">Streamlit App →</a>
+  </div>
+</nav>
+
+<!-- Controls -->
+<div class="controls">
+  <div class="control-group">
+    <span class="control-label">Event Type</span>
+    <div class="et-toggles">
+      <button class="et-btn active-injury"      data-et="IN"  onclick="toggleET(this)">Injury</button>
+      <button class="et-btn active-malfunction" data-et="M"   onclick="toggleET(this)">Malfunction</button>
+      <button class="et-btn active-death"       data-et="D"   onclick="toggleET(this)">Death</button>
+      <button class="et-btn active-other"       data-et="O"   onclick="toggleET(this)">Other</button>
+    </div>
+  </div>
+  <div class="control-group">
+    <span class="control-label">From</span>
+    <input type="date" id="date-start" value="2022-01-01">
+  </div>
+  <div class="control-group">
+    <span class="control-label">To</span>
+    <input type="date" id="date-end">
+  </div>
+  <div class="control-group">
+    <span class="control-label">Device</span>
+    <input type="text" id="device-filter" placeholder="e.g. pacemaker, catheter" style="width:160px">
+  </div>
+  <div class="control-group">
+    <span class="control-label">Records</span>
+    <select id="max-records">
+      <option value="100">100</option>
+      <option value="250">250</option>
+      <option value="500" selected>500</option>
+      <option value="1000">1000</option>
+    </select>
+  </div>
+  <button class="fetch-btn" onclick="loadData()" id="fetch-btn">Apply Filters</button>
+</div>
+
+<!-- KPI Row -->
+<div class="kpi-row">
+  <div class="kpi"><div class="kpi-value"          id="kpi-total">—</div><div class="kpi-label">Total Reports</div></div>
+  <div class="kpi"><div class="kpi-value red"       id="kpi-injury">—</div><div class="kpi-label">Injuries</div></div>
+  <div class="kpi"><div class="kpi-value darkred"   id="kpi-death">—</div><div class="kpi-label">Deaths</div></div>
+  <div class="kpi"><div class="kpi-value blue"      id="kpi-malfn">—</div><div class="kpi-label">Malfunctions</div></div>
+  <div class="kpi"><div class="kpi-value"           id="kpi-devices">—</div><div class="kpi-label">Device Types</div></div>
+  <div class="kpi"><div class="kpi-value" style="font-size:1rem" id="kpi-span">—</div><div class="kpi-label">Date Span</div></div>
+</div>
+
+<!-- Charts -->
+<div class="main">
+
+  <!-- Row 1: trend + donut -->
+  <div class="chart-row cols-3-1">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Adverse Event Reports — Monthly</span>
+      </div>
+      <div class="card-body">
+        <div id="chart-trend"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">By Event Type</span></div>
+      <div class="card-body">
+        <div id="chart-donut"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: top devices + failure topics -->
+  <div class="chart-row cols-2">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Top 15 Devices</span></div>
+      <div class="card-body">
+        <div id="chart-devices"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Failure Narrative Keywords</span>
+      </div>
+      <div class="topics-wrap" id="topic-pills"></div>
+      <div class="card-body">
+        <div id="chart-keywords"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: raw data table -->
+  <div class="chart-row cols-1">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Event Records</span>
+        <button onclick="downloadCSV()" style="font-family:'Inter',sans-serif;font-size:11px;font-weight:500;padding:4px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg);cursor:pointer;color:var(--muted)">Export CSV</button>
+      </div>
+      <div class="card-body" style="padding:0">
+        <div class="table-wrap">
+          <table id="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Event Type</th>
+                <th>Device</th>
+                <th>Manufacturer</th>
+                <th>Reporter</th>
+                <th>Narrative</th>
+              </tr>
+            </thead>
+            <tbody id="table-body">
+              <tr><td colspan="6" style="text-align:center;color:var(--subtle);padding:2rem">Loading data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <span class="footer-left">FDA MAUDE Explorer</span>
+  <span class="footer-right">
+    Data: <a href="https://open.fda.gov/apis/device/event/" target="_blank">openFDA /device/event</a> ·
+    Updated continuously by FDA · For research use only, not for clinical decision-making ·
+    Companion to <a href="https://fda-device-recall.streamlit.app" target="_blank">Device Recall Explorer</a> ·
+    <a href="https://github.com/ilina03/fda-maude-explorer" target="_blank">GitHub</a>
+  </span>
+</footer>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────
+const BASE_URL  = 'https://api.fda.gov/device/event.json';
+const PAGE_LIMIT = 100;
+
+const ET_COLORS = {
+  'Injury':      '#dc2626',
+  'Death':       '#7f1d1d',
+  'Malfunction': '#2563eb',
+  'Other':       '#9ca3af',
+  'No Answer':   '#d1d5db',
+};
+
+const ET_CODE_MAP = { 'IN': 'Injury', 'M': 'Malfunction', 'D': 'Death', 'O': 'Other', '*': 'No Answer' };
+
+// MAUDE-specific failure keywords — covers different failure modes than the recall explorer
+const FAILURE_KEYWORDS = [
+  'software', 'alarm', 'battery', 'fracture', 'leak', 'occlusion',
+  'disconnection', 'failure', 'malfunction', 'overheating', 'infection',
+  'error', 'dislodgement', 'breakage', 'degradation', 'contamination',
+  'migration', 'obstruction', 'signal', 'calibration',
+];
+
+const PLOTLY_BASE = {
+  paper_bgcolor: 'rgba(0,0,0,0)',
+  plot_bgcolor:  'rgba(0,0,0,0)',
+  font: { family: 'Inter, sans-serif', color: '#6b7280', size: 11 },
+  margin: { l: 10, r: 10, t: 10, b: 10 },
+  xaxis: { gridcolor: '#e5e7eb', linecolor: '#e5e7eb', zeroline: false },
+  yaxis: { gridcolor: '#e5e7eb', linecolor: '#e5e7eb', zeroline: false },
+};
+
+const PLOTLY_CONFIG = { displayModeBar: false, responsive: true };
+
+// ── State ────────────────────────────────────────────────────────
+let allRecords = [];
+let activeET   = new Set(['IN', 'M', 'D', 'O']);
+
+document.getElementById('date-end').value = new Date().toISOString().split('T')[0];
+
+// ── Event type toggles ────────────────────────────────────────────
+const ET_KEY_MAP = { 'IN': 'injury', 'M': 'malfunction', 'D': 'death', 'O': 'other' };
+
+function toggleET(btn) {
+  const code = btn.dataset.et;
+  if (activeET.has(code) && activeET.size > 1) {
+    activeET.delete(code);
+    btn.className = 'et-btn';
+  } else if (!activeET.has(code)) {
+    activeET.add(code);
+    btn.className = `et-btn active-${ET_KEY_MAP[code]}`;
+  }
+  if (allRecords.length > 0) renderAll();
+}
+
+// ── Fetch data ────────────────────────────────────────────────────
+async function loadData() {
+  const btn   = document.getElementById('fetch-btn');
+  const badge = document.getElementById('status-badge');
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+  badge.className = 'nav-badge loading';
+  badge.textContent = 'Fetching...';
+
+  const startDate  = document.getElementById('date-start').value;
+  const endDate    = document.getElementById('date-end').value;
+  const deviceName = document.getElementById('device-filter').value.trim();
+  const maxRecs    = parseInt(document.getElementById('max-records').value);
+
+  setLoadingState();
+
+  try {
+    allRecords = await fetchAllRecords(startDate, endDate, deviceName, maxRecs);
+    renderAll();
+    badge.className   = 'nav-badge';
+    badge.textContent = `${allRecords.length.toLocaleString()} records loaded`;
+  } catch(e) {
+    badge.className   = 'nav-badge error';
+    badge.textContent = 'API error';
+    console.error(e);
+    showError();
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = 'Apply Filters';
+  }
+}
+
+async function fetchAllRecords(startDate, endDate, deviceName, maxRecs) {
+  let records = [];
+  let skip    = 0;
+
+  while (records.length < maxRecs) {
+    const batch  = Math.min(PAGE_LIMIT, maxRecs - records.length);
+    const params = new URLSearchParams({ limit: batch, skip });
+
+    const parts = [];
+    // MAUDE date format is YYYYMMDD — no hyphens
+    if (startDate && endDate) {
+      const s = startDate.replace(/-/g, '');
+      const e = endDate.replace(/-/g, '');
+      parts.push(`date_received:[${s} TO ${e}]`);
+    }
+    if (deviceName) {
+      parts.push(`device.generic_name:"${deviceName.replace(/"/g, '')}"`);
+    }
+    if (parts.length) params.set('search', parts.join(' AND '));
+
+    const resp = await fetch(`${BASE_URL}?${params}`);
+    if (resp.status === 404) break;
+    if (!resp.ok) throw new Error(`API ${resp.status}`);
+
+    const data    = await resp.json();
+    const results = data.results || [];
+    if (!results.length) break;
+
+    records = records.concat(results.map(parseRecord));
+
+    const total = data.meta?.results?.total || 0;
+    if (skip + results.length >= total || skip + results.length >= maxRecs) break;
+    skip += results.length;
+
+    await sleep(50);
+  }
+  return records;
+}
+
+function parseRecord(r) {
+  // device[] is an array — take first element
+  const devices = r.device || [];
+  const dev     = devices[0] || {};
+
+  // mdr_text[] is an array of blocks — concatenate all narrative text
+  const mdrBlocks = r.mdr_text || [];
+  const narrative = mdrBlocks
+    .filter(b => b && b.text)
+    .map(b => b.text.trim())
+    .join(' ');
+
+  const rawET  = r.event_type || '';
+  const etLabel = ET_CODE_MAP[rawET] || 'Other';
+
+  // date_received is YYYYMMDD — convert for display
+  const rawDate = r.date_received || '';
+  const dateStr = rawDate.length === 8
+    ? `${rawDate.slice(0,4)}-${rawDate.slice(4,6)}-${rawDate.slice(6,8)}`
+    : rawDate;
+
+  return {
+    date:          dateStr,
+    dateObj:       dateStr ? new Date(dateStr) : null,
+    yearMonth:     dateStr.slice(0, 7),
+    event_type_code: rawET,
+    event_type:    etLabel,
+    generic_name:  (dev.generic_name   || '').trim(),
+    brand_name:    (dev.brand_name     || '').trim(),
+    manufacturer:  (dev.manufacturer_d_name || '').trim(),
+    reporter:      (r.reporter_occupation_code || '').trim(),
+    narrative:     narrative,
+    report_number: r.report_number || '',
+  };
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Filter ────────────────────────────────────────────────────────
+function filtered() {
+  return allRecords.filter(r => activeET.has(r.event_type_code) || r.event_type === 'No Answer');
+}
+
+// ── Render all ────────────────────────────────────────────────────
+function renderAll() {
+  const data = filtered();
+  updateKPIs(data);
+  renderTrend(data);
+  renderDonut(data);
+  renderDevices(data);
+  renderKeywords(data);
+  renderTable(data);
+}
+
+// ── KPIs ──────────────────────────────────────────────────────────
+function updateKPIs(data) {
+  const nInjury = data.filter(r => r.event_type === 'Injury').length;
+  const nDeath  = data.filter(r => r.event_type === 'Death').length;
+  const nMalfn  = data.filter(r => r.event_type === 'Malfunction').length;
+  const nDev    = new Set(data.map(r => r.generic_name).filter(Boolean)).size;
+
+  const dates = data.map(r => r.dateObj).filter(Boolean).sort((a,b) => a-b);
+  const span  = dates.length >= 2
+    ? `${fmtMonth(dates[0])} – ${fmtMonth(dates[dates.length-1])}`
+    : '—';
+
+  document.getElementById('kpi-total').textContent   = data.length.toLocaleString();
+  document.getElementById('kpi-injury').textContent  = nInjury.toLocaleString();
+  document.getElementById('kpi-death').textContent   = nDeath.toLocaleString();
+  document.getElementById('kpi-malfn').textContent   = nMalfn.toLocaleString();
+  document.getElementById('kpi-devices').textContent = nDev.toLocaleString();
+  document.getElementById('kpi-span').textContent    = span;
+}
+
+function fmtMonth(d) {
+  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+// ── Trend chart ───────────────────────────────────────────────────
+function renderTrend(data) {
+  const byMonthET = {};
+  data.forEach(r => {
+    if (!r.yearMonth) return;
+    const key = `${r.yearMonth}__${r.event_type}`;
+    byMonthET[key] = (byMonthET[key] || 0) + 1;
+  });
+
+  const months  = [...new Set(data.map(r => r.yearMonth).filter(Boolean))].sort();
+  const types   = [...new Set(data.map(r => r.event_type))];
+
+  if (!data.length) {
+    document.getElementById('chart-trend').innerHTML = '<div class="placeholder">No data for selected filters.</div>';
+    return;
+  }
+
+  const traces = types.map(et => ({
+    x: months,
+    y: months.map(m => byMonthET[`${m}__${et}`] || 0),
+    name: et,
+    type: 'scatter',
+    mode: 'lines+markers',
+    line:   { color: ET_COLORS[et] || '#9ca3af', width: 2 },
+    marker: { size: 4, color: ET_COLORS[et] || '#9ca3af' },
+    hovertemplate: `<b>${et}</b><br>%{x}: %{y} reports<extra></extra>`,
+  }));
+
+  Plotly.newPlot('chart-trend', traces, {
+    ...PLOTLY_BASE,
+    height: 260,
+    margin: { l: 40, r: 10, t: 10, b: 40 },
+    hovermode: 'x unified',
+    legend: { orientation: 'h', y: -0.22, font: { size: 10 } },
+    xaxis: { ...PLOTLY_BASE.xaxis, tickangle: -30, tickfont: { size: 10 } },
+    yaxis: { ...PLOTLY_BASE.yaxis, rangemode: 'nonnegative', title: { text: 'Reports', font: { size: 10 } } },
+  }, PLOTLY_CONFIG);
+}
+
+// ── Donut chart ───────────────────────────────────────────────────
+function renderDonut(data) {
+  const counts = {};
+  data.forEach(r => { counts[r.event_type] = (counts[r.event_type] || 0) + 1; });
+  const labels = Object.keys(counts);
+  const values = labels.map(l => counts[l]);
+
+  Plotly.newPlot('chart-donut', [{
+    type: 'pie', hole: 0.6,
+    labels, values,
+    marker: {
+      colors: labels.map(l => ET_COLORS[l] || '#9ca3af'),
+      line: { color: '#fff', width: 2 },
+    },
+    textinfo: 'label+percent',
+    textfont: { size: 10 },
+    hovertemplate: '%{label}<br>%{value:,} reports (%{percent})<extra></extra>',
+  }], {
+    ...PLOTLY_BASE,
+    height: 260,
+    margin: { l: 10, r: 10, t: 10, b: 10 },
+    showlegend: false,
+  }, PLOTLY_CONFIG);
+}
+
+// ── Top devices chart ─────────────────────────────────────────────
+function renderDevices(data) {
+  const counts = {};
+  data.forEach(r => {
+    const name = r.generic_name;
+    if (name) counts[name] = (counts[name] || 0) + 1;
+  });
+
+  const sorted  = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,15);
+  const devices = sorted.map(e => e[0].length > 38 ? e[0].slice(0,38)+'…' : e[0]).reverse();
+  const vals    = sorted.map(e => e[1]).reverse();
+
+  if (!data.length) {
+    document.getElementById('chart-devices').innerHTML = '<div class="placeholder">No data.</div>';
+    return;
+  }
+
+  Plotly.newPlot('chart-devices', [{
+    type: 'bar', orientation: 'h',
+    x: vals, y: devices,
+    marker: { color: '#111827', opacity: 0.8 },
+    text: vals, textposition: 'auto',
+    textfont: { size: 10, color: '#fff' },
+    hovertemplate: '<b>%{y}</b><br>%{x} reports<extra></extra>',
+  }], {
+    ...PLOTLY_BASE,
+    height: 360,
+    margin: { l: 10, r: 50, t: 10, b: 30 },
+    xaxis: { ...PLOTLY_BASE.xaxis, title: { text: 'Reports', font: { size: 10 } } },
+    yaxis: { ...PLOTLY_BASE.yaxis, tickfont: { size: 10 }, automargin: true },
+  }, PLOTLY_CONFIG);
+}
+
+// ── Failure keyword chart + pills ─────────────────────────────────
+function renderKeywords(data) {
+  const combined = data.map(r => r.narrative.toLowerCase());
+
+  const counts = {};
+  FAILURE_KEYWORDS.forEach(kw => {
+    const n = combined.filter(t => t.includes(kw)).length;
+    if (n > 0) counts[kw.charAt(0).toUpperCase() + kw.slice(1)] = n;
+  });
+
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  const labels = sorted.map(e => e[0]).reverse().slice(-12);
+  const vals   = sorted.map(e => e[1]).reverse().slice(-12);
+
+  // Render keyword pills above the chart (top 8)
+  const pillsEl = document.getElementById('topic-pills');
+  pillsEl.innerHTML = sorted.slice(0, 8)
+    .map(([kw]) => `<span class="topic-pill">${kw}</span>`)
+    .join('');
+
+  if (!data.length || !labels.length) {
+    document.getElementById('chart-keywords').innerHTML = '<div class="placeholder">No narrative text found.</div>';
+    return;
+  }
+
+  Plotly.newPlot('chart-keywords', [{
+    type: 'bar', orientation: 'h',
+    x: vals, y: labels,
+    marker: { color: '#2563eb', opacity: 0.7 },
+    text: vals, textposition: 'outside',
+    textfont: { size: 10, color: '#6b7280' },
+    hovertemplate: '<b>%{y}</b><br>%{x} reports<extra></extra>',
+  }], {
+    ...PLOTLY_BASE,
+    height: 300,
+    margin: { l: 10, r: 50, t: 10, b: 30 },
+    xaxis: { ...PLOTLY_BASE.xaxis, title: { text: 'Count', font: { size: 10 } } },
+    yaxis: { ...PLOTLY_BASE.yaxis, tickfont: { size: 10 }, automargin: true },
+  }, PLOTLY_CONFIG);
+}
+
+// ── Table ─────────────────────────────────────────────────────────
+function renderTable(data) {
+  const tbody  = document.getElementById('table-body');
+  const sorted = [...data].sort((a,b) => (b.dateObj||0) - (a.dateObj||0));
+
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--subtle);padding:2rem">No records match current filters.</td></tr>';
+    return;
+  }
+
+  const badgeClass = et => {
+    if (et === 'Injury')      return 'badge-injury';
+    if (et === 'Death')       return 'badge-death';
+    if (et === 'Malfunction') return 'badge-malfunction';
+    return 'badge-other';
+  };
+
+  tbody.innerHTML = sorted.slice(0, 500).map(r => `
+    <tr>
+      <td>${r.date}</td>
+      <td><span class="badge ${badgeClass(r.event_type)}">${r.event_type}</span></td>
+      <td title="${r.generic_name}">${r.generic_name.slice(0,30)}${r.generic_name.length>30?'…':''}</td>
+      <td title="${r.manufacturer}">${r.manufacturer.slice(0,28)}${r.manufacturer.length>28?'…':''}</td>
+      <td>${r.reporter.slice(0,20)}${r.reporter.length>20?'…':''}</td>
+      <td title="${r.narrative}">${r.narrative.slice(0,70)}${r.narrative.length>70?'…':''}</td>
+    </tr>
+  `).join('');
+}
+
+// ── CSV export ────────────────────────────────────────────────────
+function downloadCSV() {
+  const data    = filtered();
+  const headers = ['Date','Event Type','Device','Manufacturer','Reporter','Narrative','Report #'];
+  const rows    = data.map(r => [
+    r.date, r.event_type,
+    `"${r.generic_name.replace(/"/g,'""')}"`,
+    `"${r.manufacturer.replace(/"/g,'""')}"`,
+    r.reporter,
+    `"${r.narrative.slice(0,500).replace(/"/g,'""')}"`,
+    r.report_number,
+  ]);
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const a   = document.createElement('a');
+  a.href     = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `fda_maude_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ── Loading / error states ────────────────────────────────────────
+function setLoadingState() {
+  ['chart-trend','chart-donut','chart-devices','chart-keywords'].forEach(id => {
+    document.getElementById(id).innerHTML =
+      '<div class="placeholder"><div class="spinner"></div> Loading...</div>';
+  });
+  document.getElementById('table-body').innerHTML =
+    '<tr><td colspan="6" style="text-align:center;color:var(--subtle);padding:2rem">Loading...</td></tr>';
+  ['kpi-total','kpi-injury','kpi-death','kpi-malfn','kpi-devices','kpi-span'].forEach(id => {
+    document.getElementById(id).textContent = '—';
+  });
+  document.getElementById('topic-pills').innerHTML = '';
+}
+
+function showError() {
+  ['chart-trend','chart-donut','chart-devices','chart-keywords'].forEach(id => {
+    document.getElementById(id).innerHTML =
+      '<div class="placeholder">Could not load data. Check your connection.</div>';
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+loadData();
+</script>
+</body>
+</html>
