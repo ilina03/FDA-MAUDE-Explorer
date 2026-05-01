@@ -515,12 +515,12 @@ async function fetchAllRecords(startDate, endDate, deviceName, maxRecs) {
     await sleep(50);
   }
 
-  // Deduplicate by narrative fingerprint (first 80 chars)
-  // MAUDE files thousands of separate reports for the same field action
-  // each with a unique report_number but identical narrative text
+  // Deduplicate: combine report_number + narrative start
+  // keeps legitimate repeated field-action reports (different report_number)
+  // but removes true duplicates fetched across pagination
   const seen = new Set();
   records = records.filter(r => {
-    const key = r.narrative.slice(0, 80);
+    const key = r.report_number + '||' + r.narrative.slice(0, 200);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
