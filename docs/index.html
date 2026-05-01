@@ -561,6 +561,10 @@ function filtered() {
 // ── Render all ────────────────────────────────────────────────────
 function renderAll() {
   const data = filtered();
+  ['chart-trend','chart-donut','chart-devices','chart-keywords'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
   updateKPIs(data);
   renderTrend(data);
   renderDonut(data);
